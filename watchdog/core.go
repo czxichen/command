@@ -2,9 +2,8 @@ package watchdog
 
 import (
 	"fmt"
+	"log"
 	"time"
-
-	log "github.com/golang/glog"
 )
 
 var (
@@ -47,7 +46,7 @@ func (w *Watchdog) AddService(name, binary string) (*Service, error) {
 
 //启动服务
 func (w *Watchdog) Walk() {
-	log.Info("Seesaw watchdog starting...")
+	log.Printf("Seesaw watchdog starting...")
 
 	w.mapDependencies()
 
@@ -73,8 +72,8 @@ func (w *Watchdog) mapDependencies() {
 			if !ok {
 				log.Fatalf("Failed to find dependency %q for service %q", depName, name)
 			}
-			svc.dependencies[depName] = dep //依赖谁
-			dep.dependents[svc.name] = svc  //谁依赖它
+			svc.dependencies[depName] = dep //依赖谁,依赖启动后才会启动自身
+			dep.dependents[svc.name] = svc  //谁依赖它,依赖它的服务退出后,才退出本身
 		}
 	}
 }

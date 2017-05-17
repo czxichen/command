@@ -2,7 +2,7 @@ package watchdog
 
 import (
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"os/user"
 	"path"
@@ -11,8 +11,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	log "github.com/golang/glog"
 )
 
 //+build windows,linux
@@ -113,7 +111,7 @@ func (svc *Service) SetUser(username string) error {
 func (svc *Service) run() {
 	//如果存在依赖,要等依赖全部启动完毕之后才会自动自身.
 	for _, dep := range svc.dependencies {
-		log.Infof("Service %s waiting for %s to start", svc.name, dep.name)
+		log.Printf("Service %s waiting for %s to start", svc.name, dep.name)
 		select {
 		case started := <-dep.started:
 			dep.started <- started
@@ -130,7 +128,7 @@ func (svc *Service) run() {
 			if delay > restartBackoffMax {
 				delay = restartBackoffMax
 			}
-			log.Infof("Service %s has failed %d times - delaying %s before restart",
+			log.Printf("Service %s has failed %d times - delaying %s before restart",
 				svc.name, svc.failures, delay)
 
 			select {
@@ -156,83 +154,61 @@ done:
 
 //为服务创建日志文件
 func (svc *Service) logFile() (*os.File, error) {
-	name := "seesaw_" + svc.name
-	t := time.Now()
-	logName := name + ".log"
+	logName := svc.name + ".log"
 
 	if err := os.MkdirAll(logDir, 0666); err != nil {
 		if !os.IsExist(err) {
 			return nil, err
 		}
 	}
-	f, err := os.Create(path.Join(logDir, logName))
+	f, err := os.OpenFile(path.Join(logDir, logName), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(f, "Log file for %s (stdout/stderr)\n", name)
-	fmt.Fprintf(f, "Created at: %s\n", t.Format("2006/01/02 15:04:05"))
+	fmt.Fprintf(f, "Log file for %s (stdout/stderr)\n", svc.name)
+	fmt.Fprintf(f, "Created at: %s\n", time.Now().Format("2006/01/02 15:04:05"))
 	return f, nil
-}
-
-//拷贝输出到日志文件
-func (svc *Service) logSink(f *os.File, r io.ReadCloser) {
-	_, err := io.Copy(f, r)
-	if err != nil {
-		log.Warningf("Service %s - log sink failed: %v", svc.name, err)
-	}
-	f.Close()
-	r.Close()
 }
 
 //运行程序
 func (svc *Service) runOnce() {
 	args := make([]string, len(svc.args)+1)
-	args[0] = "seesaw_" + svc.name
+	args[0] = svc.name
 	copy(args[1:], svc.args)
 
 	null, err := os.Open(os.DevNull)
 	if err != nil {
-		log.Warningf("Service %s - failed to open %s: %v", svc.name, os.DevNull, err)
+		log.Printf("Service %s - failed to open %s: %v", svc.name, os.DevNull, err)
 		return
 	}
 
-	pr, pw, err := os.Pipe()
+	lfile, err := svc.logFile()
 	if err != nil {
-		log.Warningf("Service %s - failed to create pipes: %v", svc.name, err)
+		log.Printf("Service %s - failed to create log file: %v", svc.name, err)
 		null.Close()
 		return
 	}
 
-	f, err := svc.logFile()
-	if err != nil {
-		log.Warningf("Service %s - failed to create log file: %v", svc.name, err)
-		null.Close()
-		pr.Close()
-		pw.Close()
-		return
-	}
+	attr := newProc(svc, null, lfile)
 
-	go svc.logSink(f, pr)
-
-	attr := newProc(svc, null, pw)
-
-	log.Infof("Starting service %s...", svc.name)
+	log.Printf("Starting service %s...", svc.name)
 	proc, err := os.StartProcess(svc.binary, args, attr)
 	if err != nil {
-		log.Warningf("Service %s failed to start: %v", svc.name, err)
+		log.Printf("Service %s failed to start: %v", svc.name, err)
 		svc.lastFailure = time.Now()
 		svc.failures++
 		null.Close()
-		pw.Close()
 		return
 	}
+
 	null.Close()
-	pw.Close()
+	lfile.Close()
 	svc.lock.Lock()
 	svc.process = proc
 	svc.lock.Unlock()
+
 	if err := setPriority(uintptr(proc.Pid), uintptr(svc.priority)); err != 0 {
-		log.Warningf("Failed to set priority to %d for service %s: %v", svc.priority, svc.name, err)
+		log.Printf("Failed to set priority to %d for service %s: %v", svc.priority, svc.name, err)
 	}
 	select {
 	case svc.started <- true:
@@ -241,20 +217,20 @@ func (svc *Service) runOnce() {
 
 	state, err := svc.process.Wait()
 	if err != nil {
-		log.Warningf("Service %s wait failed with %v", svc.name, err)
+		log.Printf("Service %s wait failed with %v", svc.name, err)
 		svc.lastFailure = time.Now()
 		svc.failures++
 		return
 	}
 	if !state.Success() {
-		log.Warningf("Service %s exited with %v", svc.name, state)
+		log.Printf("Service %s exited with %v", svc.name, state)
 		svc.lastFailure = time.Now()
 		svc.failures++
 		return
 	}
 
 	svc.failures = 0
-	log.Infof("Service %s exited normally.", svc.name)
+	log.Printf("Service %s exited normally.", svc.name)
 }
 
 //给进程发送信号
@@ -269,10 +245,10 @@ func (svc *Service) signal(sig os.Signal) error {
 
 //停止服务
 func (svc *Service) stop() {
-	log.Infof("Stopping service %s...", svc.name)
+	log.Printf("Stopping service %s...", svc.name)
 	//等待依赖它的进程退出完毕之后再退出自己.
 	for _, dep := range svc.dependents {
-		log.Infof("Service %s waiting for %s to stop", svc.name, dep.name)
+		log.Printf("Service %s waiting for %s to stop", svc.name, dep.name)
 		stopped := <-dep.stopped
 		dep.stopped <- stopped
 	}
@@ -286,6 +262,6 @@ func (svc *Service) stop() {
 		svc.signal(syscall.SIGKILL)
 		<-svc.done
 	}
-	log.Infof("Service %s stopped", svc.name)
+	log.Printf("Service %s stopped", svc.name)
 	svc.stopped <- true
 }
