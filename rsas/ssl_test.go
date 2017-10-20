@@ -12,7 +12,7 @@ func Test_crt(t *testing.T) {
 		OrganizationalUnit: []string{"work-stacks"}, EmailAddress: []string{"czxichen@163.com"},
 		Locality: []string{"SuZhou"}, Province: []string{"JiangSu"}, CommonName: "Work-stacks", EncryptLen: 512}
 
-	rootca, rootkey, err := CreatePemCRT(baseinfo)
+	rootca, rootkey, err := CreatePemCRT(nil, nil, baseinfo)
 	if err != nil {
 		t.Log("Create crt error,Error info:", err)
 		return

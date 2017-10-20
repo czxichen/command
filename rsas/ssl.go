@@ -14,7 +14,6 @@ import (
 	rd "math/rand"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -45,8 +44,11 @@ import (
 func init() {
 	rd.Seed(time.Now().UnixNano())
 }
+func GetDefaultCrtInfo() CertInformation {
+	return defaultCrtInfo
+}
 
-var DefaultCrtInfo = CertInformation{
+var defaultCrtInfo = CertInformation{
 	Country:            []string{"CH"},
 	Organization:       []string{"www.work-stacks.com"},
 	OrganizationalUnit: []string{"Paas"},
@@ -55,7 +57,7 @@ var DefaultCrtInfo = CertInformation{
 	Locality:           []string{"SuZhou"},
 	CommonName:         ".work-stacks.com",
 	IPAddresses:        []net.IP{net.ParseIP("127.0.0.1")},
-	EncryptLen:         512,
+	EncryptLen:         1024,
 	IsCA:               false,
 	DateLen:            5,
 }
@@ -136,7 +138,7 @@ func CreateCRT(RootCa *x509.Certificate, RootKey *rsa.PrivateKey, info CertInfor
 }
 
 func WirteFile(path string, buf []byte, typ string) error {
-	os.MkdirAll(filepath.Dir(path), 0666)
+	//	os.MkdirAll(filepath.Dir(path), 0666)
 	File, err := os.Create(path)
 	defer File.Close()
 
