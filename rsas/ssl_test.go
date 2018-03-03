@@ -10,7 +10,7 @@ import (
 func Test_crt(t *testing.T) {
 	baseinfo := CertInformation{Country: []string{"CN"}, Organization: []string{"WS"}, IsCA: true,
 		OrganizationalUnit: []string{"work-stacks"}, EmailAddress: []string{"czxichen@163.com"},
-		Locality: []string{"SuZhou"}, Province: []string{"JiangSu"}, CommonName: "Work-stacks", EncryptLen: 512}
+		Locality: []string{"SuZhou"}, Province: []string{"JiangSu"}, CommonName: "Work-stacks", EncryptLen: 2048}
 
 	rootca, rootkey, err := CreatePemCRT(nil, nil, baseinfo)
 	if err != nil {

@@ -74,7 +74,6 @@ type CertInformation struct {
 	IPAddresses        []net.IP
 	IsCA               bool //是否是根证书
 	Names              []pkix.AttributeTypeAndValue
-	CrtName, KeyName   string
 	EncryptLen         int //密钥长度
 	DateLen            int //有效期,单位年
 }
@@ -88,6 +87,31 @@ func SignerCRT(rootcrt *x509.Certificate, rootkey *rsa.PrivateKey, crt *x509.Cer
 	b := bytes.NewBuffer(nil)
 	err = Write(b, buf, "CERTIFICATE")
 	return b.Bytes(), err
+}
+
+func SignerCRTFromFile(rc, rk, ac, oc string) error {
+	crt, key, err := Parse(rc, rk)
+	if err != nil {
+		return err
+	}
+	buf, err := ioutil.ReadFile(ac)
+	if err != nil {
+		return err
+	}
+	acrt, err := ParseCrt(buf)
+	if err != nil {
+		return err
+	}
+	buf, err = SignerCRT(crt, key, acrt)
+	if err != nil {
+		return err
+	}
+	File, err := os.Create(oc)
+	if err != nil {
+		return err
+	}
+	File.Write(buf)
+	return File.Close()
 }
 
 func CheckSignature(rootcrt *x509.Certificate, crt []byte) error {
