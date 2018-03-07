@@ -13,39 +13,41 @@ type Compress interface {
 	Write(p []byte) (int, error)
 }
 
+//path=/path/dir 则打包的时候会加dir目录,如果path=/path/dir/则不打包dir目录
 func walk(path string, compresser Compress) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
+	var (
+		opath     string = filepath.FromSlash(path)
+		baseDir   string = ""
+		separator string = string(filepath.Separator)
+	)
+
+	path = filepath.Clean(path) + separator
+	if !strings.HasSuffix(opath, separator) {
+		baseDir = filepath.Base(path) + separator
 	}
 
-	var baseDir string
-	if info.IsDir() {
-		baseDir = filepath.Base(path)
-	}
-
-	filepath.Walk(path, func(root string, info os.FileInfo, err error) error {
+	return filepath.Walk(path, func(root string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		root = filepath.ToSlash(root)
-		fileroot := root
 		if root = strings.TrimPrefix(root, path); root == "" {
-			root = baseDir
-		} else {
-			root = baseDir + root
+			return nil
 		}
+
+		root = baseDir + root
 		err = compresser.WriteHead(root, info)
 		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
 		}
-		F, err := os.Open(fileroot)
+		File, err := os.Open(root)
 		if err != nil {
 			return nil
 		}
-		io.Copy(compresser, F)
-		F.Close()
-		return nil
+		_, err = io.Copy(compresser, File)
+		File.Close()
+		return err
 	})
-	return nil
 }
