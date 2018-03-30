@@ -34,7 +34,7 @@ func Wget(quic bool, request, save, user, passwd string, tlscfg *tls.Config) err
 		if !quic {
 			client.Transport = &http.Transport{TLSClientConfig: tlscfg}
 		} else {
-			client.Transport = &h2quic.QuicRoundTripper{TLSClientConfig: tlscfg}
+			client.Transport = &h2quic.RoundTripper{TLSClientConfig: tlscfg}
 		}
 	}
 
