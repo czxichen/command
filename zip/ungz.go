@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func Ungzip(filepath, desdir string, Log func(format string, v ...interface{}) (int, error)) error {
+func Ungzip(filepath, desdir string, Log func(format string, v ...interface{})) error {
 	File, err := os.Open(filepath)
 	if err != nil {
 		return err

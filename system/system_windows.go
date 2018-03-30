@@ -127,9 +127,9 @@ func GetProcs() (procs []ProcessInfo, err error) {
 		err = syscall.GetLastError()
 		return
 	}
-	procs = append(procs, ProcessInfo{syscall.UTF16ToString(pe32.SzExeFile[:260]), pe32.Th32ProcessID, pe32.Th32ParentProcessID})
+	procs = append(procs, ProcessInfo{syscall.UTF16ToString(pe32.SzExeFile[:MAX_PATH]), pe32.Th32ProcessID, pe32.Th32ParentProcessID})
 	for process32Next(snap, &pe32) {
-		procs = append(procs, ProcessInfo{syscall.UTF16ToString(pe32.SzExeFile[:260]), pe32.Th32ProcessID, pe32.Th32ParentProcessID})
+		procs = append(procs, ProcessInfo{syscall.UTF16ToString(pe32.SzExeFile[:MAX_PATH]), pe32.Th32ProcessID, pe32.Th32ParentProcessID})
 	}
 	return
 }

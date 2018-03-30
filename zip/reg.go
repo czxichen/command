@@ -9,6 +9,7 @@ import (
 
 type Compress interface {
 	Close() error
+	Walk(source string) error
 	WriteHead(path string, info os.FileInfo) error
 	Write(p []byte) (int, error)
 }
@@ -22,29 +23,29 @@ func walk(path string, compresser Compress) error {
 	)
 
 	path = filepath.Clean(path) + separator
+
 	if !strings.HasSuffix(opath, separator) {
 		baseDir = filepath.Base(path) + separator
 	}
 
-	return filepath.Walk(path, func(root string, info os.FileInfo, err error) error {
+	return filepath.Walk(path, func(baseroot string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if root = strings.TrimPrefix(root, path); root == "" {
+		var root = strings.TrimPrefix(baseroot, path)
+		if root == "" {
 			return nil
 		}
-
-		root = baseDir + root
-		err = compresser.WriteHead(root, info)
+		err = compresser.WriteHead(baseDir+root, info)
 		if err != nil {
 			return err
 		}
 		if info.IsDir() {
 			return nil
 		}
-		File, err := os.Open(root)
+		File, err := os.Open(baseroot)
 		if err != nil {
-			return nil
+			return err
 		}
 		_, err = io.Copy(compresser, File)
 		File.Close()
